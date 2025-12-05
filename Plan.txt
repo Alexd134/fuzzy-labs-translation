@@ -1,0 +1,48 @@
+Models and ML Choices:
+- for singular translation smaller model would be preferable as it should help reduce cold start times, should be fine for x -> y translations as they are only trained for that purpose. Might struggle further down the line if we try to implement multiple languages, maybe we need a bigger model. Worth the sacrifice of model size/cost, latency, GPU use etc.
+- Could have also used hosted inference or pre-trained cloud hosted services like SageMaker, but not really in scope of task.
+
+API:
+- FastAPI - used before so less initial barrier to getting started, seems commonly used, can be async, automatic docs. ALso gives a clearer path to websockets etc in the future.
+- Uvicorn - can help with future concurrency utilising multiple workers (can leverage Gunicorn). Works pretty well with containerisation. If one worker goes down due to memory or CPU usage guvicorn can restart just that one and not take down whole app.
+- Endpoint thoughts - POST /translate using format -> request { source_lang, target_lang, text}. response -> {source_lang, target_lang, translated_text, model_name}
+- Can use Pydantic for validation (used before)
+
+Architecture: 
+- API layer to expose endpoints, handle http, validation, call into service interface
+- Service layer, load transformer on startup, encapsulate model logic
+- No DB currently so no need for DAO or anything like that but it should be considered for model monitoring or if we wanted to have users authenticate and have chat history.
+- Thought about Server Sent Events as that is commonly used with LLMs but from some quick research a lot of translate models don't generate the tokens in sequence, just provide a final translation at the end so no real benefit here. 
+
+Concurrency and Scalability:
+- On the small scale multiple workers can be used (each loading their own model, this does have memory/processing constraints). Can handle http requests concurrently.
+- On a larger scale could containerize and then scale on demand with something like Kubernetes, use auto-balancer.
+- Other options like AWS Lambda if we are happy with cold starts and don't want to host ourselves. Might timeout or use up memory quite easily.
+- Could also create a custom thread pool inside one process, this would mean only one model in memory which is a big save. With Pythons recent changes to improve parallelisation this could be good...(is it production ready?). I think that mainly helps with I/O rather than the heavy compute though so going to go with workers.
+- If translation would take a long time then it might be best to implement background jobs and queues. Client is returned a job id and then calls to get updates until done w/translation. Probably not needed here unless we are translating large files/text pieces.
+
+Databases/Storage:
+- No database for this MVP but could be good to get end user feedback, could also use for user history as mentioned above.
+- Could use some sort of cache (redis??) to cache commonly requested translations, potentially some computation saved but depends on how the model is being used.
+- On large scale probably wouldn't even use our own DB, could utilise something like a data lake
+
+Testing and evaluation strategy:
+- Unit tests for both. 
+- Translations can be tested using BLEU score (from Huggingface docs), more popular is COMET or METEOR score. This is offline testing.
+- Testing in production would likely need user feedback or use human in the loop testing. Could use this to detect drift, if x percent of translations are incorrect then assess the model. Drift is not much of a problem here though would likely just be to do with tone rather than actually incorrect translations.
+- Make sure we log key metrics such as latency, errors
+
+
+Extra thoughts/considerations:
+- Could we add the ability to finetune into specific domains? Translations in business context for example? Huggingface has the capability. This would need a lot of work though, potentially setting up MLFLow experiments, HuggingFace Trainer? 
+
+UI? 
+Probably not going to implement a UI here. Would be something to add later.
+
+Singleton pattern means model is only loaded once per worker process but we should monitor memory usage: each worker will hold a full copy of the model
+For very large models, we should consider using a dedicated model serving solution like TorchServe or TensorFlow Serving
+Production deployment pattern:
+- When running with Gunicorn + multiple Uvicorn workers, each worker process
+  will instantiate its own TranslationService and load the model once
+- This provides process-level parallelism for handling concurrent requests
+- For horizontal scaling, deploy multiple containers/pods behind a load balancer

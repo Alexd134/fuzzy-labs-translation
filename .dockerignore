@@ -1,0 +1,72 @@
+# Docker ignore file - excludes files from build context
+# Reduces build time and image size by not copying unnecessary files
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python cache and artifacts
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# Documentation
+*.md
+docs/
+*.txt.bak
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Docker files (don't need these inside the container)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Model cache (we download in the Dockerfile)
+.cache/
+models/
+
+# Environment files (secrets should be injected at runtime)
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+
+# OS files
+Thumbs.db
